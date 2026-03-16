@@ -1,6 +1,6 @@
 Package: schard
 Title: Reticulate-free single cell object conversion
-Version: 0.0.1
+Version: 1.0.0
 Authors@R: 
     person(given = "Pavel",
            family = "Mazin",

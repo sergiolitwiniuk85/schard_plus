@@ -27,7 +27,10 @@ h5ad2data.frame = function(filename,name,keep.rownames.as.column=TRUE){
     # remove factors
     inx = c()
     for(i in inx_){
-      if(length(collist[[i]]) != 2 | !all(names(collist[[i]]) %in% c("categories","codes")))
+      # exclude other known nested structures
+      # if length is not 2, then it is not factor or masked vector
+      if(length(collist[[i]]) != 2 | (!all(names(collist[[i]]) %in% c("categories","codes")) &
+                                      !all(names(collist[[i]]) %in% c("mask","values"))))
         inx = c(inx,i)
     }
     if(length(inx) == 0)
@@ -41,28 +44,20 @@ h5ad2data.frame = function(filename,name,keep.rownames.as.column=TRUE){
     collist[[inx]] = NULL
   }
 
-  # sometime vector columns are stored as arrays, it'll cause problems latter on, lets coerce them to vectors
-  for(i in which(sapply(collist,is.array)))
-    collist[[i]] = as.vector(collist[[i]])
+  # parse regular factors, vectors and masked arrays
+  collist = lapply(collist,parseVector)
 
-  # factors are stored as list of categories and names, other types are stored as vectors
-    # first way to store factors (all levels are in collist[['__categories']])
+  # some other ways to store factors:
+  # first way to store factors (all levels are in collist[['__categories']])
   for(fn in names(collist[['__categories']])){
     codes = collist[[fn]]+1
     codes[codes==0] = NA
     collist[[fn]] = as.vector(collist[['__categories']][[fn]][codes])
   }
+
   collist[['__categories']] = NULL
 
-  # another way to store factors (each factor is 2-item list)
-  for(fn in names(ll)[ll==2]){
-    if(all(names(collist[[fn]]) %in% c("categories","codes"))){
-      codes = collist[[fn]]$codes+1
-      codes[codes==0] = NA
-      collist[[fn]] = as.vector(collist[[fn]]$categories[codes])
-    }
-  }
-  # yet another way to store factors with names stored in /uns
+  # another way to store factors with names stored in /uns
   uns_names = rhdf5::h5ls(filename)
   uns_names = uns_names[uns_names$group=='/uns' & endsWith(uns_names$name,'_categories'),]
   uns_names$var_name = sub('_categories$','',uns_names$name)
@@ -72,8 +67,6 @@ h5ad2data.frame = function(filename,name,keep.rownames.as.column=TRUE){
     cats = rhdf5::h5read(filename,paste0('/uns/',uns_names$name[i]))
     collist[[fn]] = cats[collist[[fn]]+1]
   }
-
-
 
   ll = sapply(collist,length)
   if(any(ll != max(ll)))
@@ -99,6 +92,28 @@ h5ad2data.frame = function(filename,name,keep.rownames.as.column=TRUE){
   res
 }
 
+# pasres masked arrays, factors and ordinary vectors into vectors
+parseVector = function(x){
+  if(is(x, "array")){
+    return(as.vector(x))
+  }
+  if(is(x, "list")){
+    # factors
+    if(all(names(x) %in% c("categories","codes"))){
+      codes = as.vector(x$codes+1)
+      codes[codes==0] = NA
+      return(parseVector(x$categories)[codes])
+    }
+    # masked arrays
+    if(all(names(x) %in% c("mask","values"))){
+      values = x$values
+      values[x$mask=='TRUE'] = NA # don't know why, by mask if factor...
+      return(as.vector(values))
+    }
+  }
+  # return as is if it is something else
+  return(x)
+}
 
 
 
