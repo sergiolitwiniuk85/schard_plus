@@ -276,15 +276,15 @@ shiny_server <- function(input, output, session, data, qc_detected, replicate_co
     content = function(file) {
       f <- filtered()
       qc <- qc_metrics()
-      export_df <- data.frame(
-        cell_barcode = qc$cell_barcode,
-        pass = f$pass,
-        fail_reason = f$fail_reason,
-        stringsAsFactors = FALSE
-      )
-      if (!is.null(input$replicate_select) && input$replicate_select != "") {
-        export_df$replicate <- data()$obs[[input$replicate_select]]
-      }
+
+      export_df <- data()$obs
+      export_df$cell_barcode <- qc$cell_barcode
+      export_df$pass <- f$pass
+      export_df$fail_reason <- f$fail_reason
+
+      col_order <- unique(c("cell_barcode", "pass", "fail_reason", colnames(export_df)))
+      export_df <- export_df[, col_order[col_order %in% colnames(export_df)]]
+
       write.csv(export_df, file, row.names = FALSE)
     }
   )
@@ -293,7 +293,7 @@ shiny_server <- function(input, output, session, data, qc_detected, replicate_co
     filename = function() paste0("qc_report_", Sys.Date(), ".html"),
     content = function(file) {
       f <- filtered()
-      results <- list(pass = f$pass, fail_reason = f$fail_reason, qc = qc_metrics())
+      results <- list(pass = f$pass, fail_reason = f$fail_reason, qc = qc_metrics(), thresholds = thresholds())
       rep_data <- NULL
       if (!is.null(input$replicate_select) && input$replicate_select != "") {
         rep_data <- impact_by_replicate(data()$obs, input$replicate_select, f$pass, loss_threshold)

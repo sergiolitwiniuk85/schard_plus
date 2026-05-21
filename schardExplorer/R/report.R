@@ -69,7 +69,7 @@ qc_report.default <- function(object, output_dir = ".",
     ggplot2::ggsave(file.path(output_dir, "impact_by_replicate.png"), p, width = 8, height = 5, dpi = 150)
   }
 
-  results <- list(pass = filtered$pass, fail_reason = filtered$fail_reason, qc = qc)
+  results <- list(pass = filtered$pass, fail_reason = filtered$fail_reason, qc = qc, thresholds = thresholds)
   write_qc_html(results, file.path(output_dir, "qc_summary.html"))
 
   message(sprintf("QC Report: %d/%d cells pass (%.1f%%) \u2192 %s",
@@ -104,11 +104,12 @@ qc_report.Seurat <- function(object, output_dir = ".", thresholds = list(pct_mit
   NextMethod()
 }
 
-#' Write a simple self-contained QC HTML report
+#' Write a self-contained HTML QC report
 #'
-#' @param results List with elements: pass (logical), fail_reason (character), qc (data.frame)
-#' @param output_path Character, path to write the HTML file
-#' @return Invisibly returns output_path
+#' @param results list with pass, fail_reason, qc, thresholds
+#' @param output_path character, file path to write
+#' @param replicate_data optional data.frame from impact_by_replicate
+#' @return invisible output_path
 #' @keywords internal
 write_qc_html <- function(results, output_path, replicate_data = NULL) {
   n_total <- length(results$pass)
@@ -117,11 +118,23 @@ write_qc_html <- function(results, output_path, replicate_data = NULL) {
   pct_pass <- round(n_pass / n_total * 100, 1)
   pct_fail <- round(n_fail / n_total * 100, 1)
 
+  qc_summary_rows <- ""
+  qc_metrics <- c("pct_mito", "n_genes", "n_UMI", "doublet_score")
+  for (m in qc_metrics) {
+    if (!is.null(results$qc[[m]]) && !all(is.na(results$qc[[m]]))) {
+      vals <- results$qc[[m]][!is.na(results$qc[[m]])]
+      qc_summary_rows <- paste0(qc_summary_rows, sprintf(
+        '<tr><td>%s</td><td>%.1f</td><td>%.1f</td><td>%.1f</td><td>%.1f</td></tr>\n',
+        m, min(vals), mean(vals), stats::median(vals), max(vals)
+      ))
+    }
+  }
+
   rep_rows <- ""
   if (!is.null(replicate_data) && nrow(replicate_data) > 0) {
     for (i in seq_len(nrow(replicate_data))) {
       r <- replicate_data[i, ]
-      cl <- if (isTRUE(r$warning)) ' class="warn"' else ""
+      cl <- if (isTRUE(r$warning)) ' class="warning"' else ""
       rep_rows <- paste0(rep_rows, sprintf(
         '<tr%s><td>%s</td><td>%d</td><td>%d</td><td>%d</td><td>%.1f%%</td><td>%.1f%%</td></tr>\n',
         cl, r$replicate, r$total, r$passing, r$failing, r$pct_pass, r$pct_lost
@@ -136,31 +149,66 @@ write_qc_html <- function(results, output_path, replicate_data = NULL) {
 %s
 </table>', rep_rows) else ""
 
-  html <- sprintf('<!DOCTYPE html>
-<html>
-<head><title>QC Report</title>
-<style>
-body { font-family: -apple-system, sans-serif; max-width: 960px; margin: 2em auto; }
-table { border-collapse: collapse; width: 100%%; }
-th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-th { background: #f5f5f5; }
-.pass { color: #2E86AB; }
-.fail { color: #A23B72; }
-.warn { background: #FFE4E1; }
-</style></head>
-<body>
-<h1>QC Report</h1>
-<p>Generated: %s</p>
-<h2>Summary</h2>
+  thresholds <- results$thresholds
+  params_rows <- ""
+  if (!is.null(thresholds)) {
+    for (nm in names(thresholds)) {
+      v <- thresholds[[nm]]
+      params_rows <- paste0(params_rows, sprintf(
+        '<tr><td>%s</td><td>%s</td></tr>\n',
+        nm, paste(v, collapse = " \u2013 ")
+      ))
+    }
+  }
+  params_section <- if (nzchar(params_rows)) sprintf('
+<h2>Filtering Parameters</h2>
 <table>
-<tr><th>Metric</th><th>Value</th></tr>
-<tr><td>Total cells</td><td>%d</td></tr>
-<tr><td>Passing</td><td class="pass">%d (%.1f%%%%)</td></tr>
-<tr><td>Failing</td><td class="fail">%d (%.1f%%%%)</td></tr>
+<tr><th>Parameter</th><th>Value</th></tr>
+%s
+</table>', params_rows) else ""
+
+  html <- sprintf('<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>QC Report \u2014 schardExplorer</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 960px; margin: 2em auto; padding: 0 1em; color: #333; }
+h1 { color: #2E86AB; border-bottom: 2px solid #2E86AB; padding-bottom: 0.3em; }
+h2 { color: #555; margin-top: 1.5em; }
+table { border-collapse: collapse; width: 100%%; margin: 1em 0; }
+th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+th { background: #f5f5f5; font-weight: 600; }
+tr:nth-child(even) { background: #fafafa; }
+.pass { color: #2E86AB; font-weight: 600; }
+.fail { color: #A23B72; font-weight: 600; }
+.warning { background: #FFE4E1 !important; }
+.summary-box { background: #f0f7fa; border-left: 4px solid #2E86AB; padding: 1em; margin: 1em 0; border-radius: 4px; }
+.footer { margin-top: 2em; font-size: 0.85em; color: #999; border-top: 1px solid #eee; padding-top: 1em; }
+</style>
+</head>
+<body>
+<h1>schardExplorer QC Report</h1>
+<p>Generated: %s</p>
+<div class="summary-box">
+<strong>Summary:</strong> <span class="pass">%d (%.1f%%) passing</span> | <span class="fail">%d (%.1f%%) failing</span> | %d total cells
+</div>
+<h2>QC Metric Summary</h2>
+<table>
+<tr><th>Metric</th><th>Min</th><th>Mean</th><th>Median</th><th>Max</th></tr>
+%s
 </table>
 %s
-</body></html>',
-    Sys.time(), n_total, n_pass, pct_pass, n_fail, pct_fail, rep_section)
+%s
+<div class="footer">
+<p>Generated by schardExplorer v0.1.0</p>
+</div>
+</body>
+</html>',
+    Sys.time(), n_pass, pct_pass, n_fail, pct_fail, n_total,
+    qc_summary_rows,
+    rep_section,
+    params_section)
 
   writeLines(html, output_path)
   invisible(output_path)

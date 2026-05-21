@@ -6,6 +6,8 @@ Authors@R:
            family = "Litwiniuk",
            role = c("aut", "cre"),
            email = "sergiolitwiniuk85@gmail.com")
+Author: Sergio Litwiniuk
+Maintainer: Sergio Litwiniuk <sergiolitwiniuk85@gmail.com>
 Description: Interactive QC dashboard and batch QC reporting for single-cell
     RNA-seq data. Companion package to schard. Provides Shiny-based interactive
     filtering and static batch reports with biological replicate tracking.
