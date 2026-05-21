@@ -4,7 +4,8 @@
 #' Returns a standardized data.frame.
 #'
 #' @param obs data.frame with cell metadata (from schard::h5ad2list)
-#' @param qc_cols optional named vector to override QC column detection
+#' @param qc_cols optional named vector to override QC column detection.
+#'   Pass NULL (or omit) to auto-detect.
 #' @return data.frame with columns: cell_barcode, pct_mito, n_genes, n_UMI, doublet_score
 #' @export
 compute_qc_metrics <- function(obs, qc_cols = NULL) {
@@ -23,7 +24,8 @@ compute_qc_metrics <- function(obs, qc_cols = NULL) {
     stringsAsFactors = FALSE
   )
 
-  missing <- names(detected)[vapply(detected, is.null, logical(1))]
+  standard_metrics <- c("pct_mito", "n_genes", "n_UMI", "doublet_score")
+  missing <- setdiff(standard_metrics, names(detected))
   if (length(missing) > 0) {
     warning(
       "Could not detect QC columns for: ", paste(missing, collapse = ", "),
