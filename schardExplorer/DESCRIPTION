@@ -1,0 +1,29 @@
+Package: schardExplorer
+Title: Interactive QC Dashboard for Single-Cell Data
+Version: 0.1.0
+Authors@R:
+    person(given = "Sergio",
+           family = "Litwiniuk",
+           role = c("aut", "cre"),
+           email = "sergiolitwiniuk85@gmail.com")
+Description: Interactive QC dashboard and batch QC reporting for single-cell
+    RNA-seq data. Companion package to schard. Provides Shiny-based interactive
+    filtering and static batch reports with biological replicate tracking.
+License: GPL-3
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Imports:
+    schard,
+    shiny,
+    bslib,
+    plotly,
+    DT,
+    dplyr,
+    ggplot2
+Suggests:
+    testthat (>= 3.0.0),
+    shinytest2,
+    rmarkdown,
+    Seurat,
+    SingleCellExperiment
