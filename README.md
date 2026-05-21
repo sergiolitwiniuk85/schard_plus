@@ -1,55 +1,168 @@
-# schard
-This package allows one to load scanpy h5ad into R as list, SingleCellExperiment or Seurat object. For now it only loads `X`, `obs`, `var`, `obsm` (as reduced dimensions) if requested and `images` for visium data. 
-The package is based on rhdf5 for h5ad manipulation and is pure R (that is reticulate-free).
+# schard <img src="man/figures/logo.png" align="right" height="138" />
 
-# Installation
-schard can be installed from github
-```R
-devtools::install_github("cellgeni/schard")
+<!-- badges: start -->
+[![R-CMD-check](https://github.com/sergiolitwiniuk85/schard_plus/actions/workflows/check.yaml/badge.svg)](https://github.com/sergiolitwiniuk85/schard_plus/actions/workflows/check.yaml)
+[![License: GPL-3](https://img.shields.io/badge/license-GPL--3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+<!-- badges: end -->
+
+**schard** is a pure R package to read and write [scanpy](https://scanpy.readthedocs.io/) H5AD (AnnData) files.
+No Python, no reticulate — just `rhdf5` under the hood.
+
+---
+
+## Features
+
+### Read (original)
+| Function | Output | Use case |
+|---|---|---|
+| `h5ad2list()` | `list` | Low-level access to raw data |
+| `h5ad2sce()` | `SingleCellExperiment` | Bioconductor workflows |
+| `h5ad2seurat()` | `Seurat` | Seurat v4/v5 workflows |
+| `h5ad2seurat_spatial()` | `Seurat` or list | Visium spatial data |
+| `h5ad2data.frame()` | `data.frame` | Quick metadata access |
+| `h5ad2Matrix()` | `dgCMatrix` | Pull expression or embedding matrix |
+| `h5ad2images()` | list of images | Visium spatial images |
+
+### Write (new in v1.1.0)
+| Function | Input | Writes to H5AD |
+|---|---|---|
+| `write_h5ad()` | `SingleCellExperiment`, `Seurat`, or `list` | `X`, `obs`, `var`, `obsm`, `uns` → scanpy-compatible `.h5ad` |
+
+---
+
+## Installation
+
+```r
+# From GitHub
+remotes::install_github("sergiolitwiniuk85/schard_plus")
+
+# Load
+library(schard)
 ```
 
-# Usage
-Download some public h5ads from [CZI cellxgene](https://cellxgene.cziscience.com/) or one of [Sanger atlases](https://covid19.cog.sanger.ac.uk/baron16.processed.h5ad) and load them to R:
-```R
-download.file('https://datasets.cellxgene.cziscience.com/c5ac5c36-f60c-4680-8018-2d6cb65c0a37.h5ad','vis.heart.h5ad')
-download.file('https://datasets.cellxgene.cziscience.com/8cc521c8-c4ff-4cba-a07b-cae67a9dcba9.h5ad','sn.heart.h5ad')
-download.file('https://covid19.cog.sanger.ac.uk/baron16.processed.h5ad','ba16.h5ad')
+---
 
-# load h5ad as Single Cell Experiment
-ba16.sce = schard::h5ad2sce('ba16.h5ad')
-# load h5ad as Seurat
-snhx = schard::h5ad2seurat('sn.heart.h5ad')
-# load all visium samples as single Seurat object
-visx = schard::h5ad2seurat_spatial('vis.heart.h5ad')
-# or load as list of Seurat objects (per slide
-visl = schard::h5ad2seurat_spatial('vis.heart.h5ad',simplify = FALSE)
-# or load raw counts
-snhr = schard::h5ad2seurat('sn.heart.h5ad',use.raw = TRUE)
-# raw counts for visium
-visr = schard::h5ad2seurat_spatial('vis.heart.h5ad',use.raw = TRUE)
+## Reading H5AD files
 
-# check that it works
-Seurat::SpatialPlot(visx,features = 'total_counts')
-Seurat::SpatialPlot(visx,features = 'total_counts',images = 'HCAHeartST11702009')
-Seurat::SpatialPlot(visl$HCAHeartST11702010,features = 'total_counts')
-plot(colSums(visx),colSums(visr),pch=16) # raw counts are different from normolized ones
-Seurat::DimPlot(snhx,group.by = 'cell_state') # the name of reduction is 'Xumap_' (autotranslated from scanpy to Seurat), somehow DimPlot manages to find it, but probably safier to specify it manually with reduction = 'Xumap_'
+```r
+# Load a public dataset
+download.file(
+  "https://datasets.cellxgene.cziscience.com/8cc521c8-c4ff-4cba-a07b-cae67a9dcba9.h5ad",
+  "sn.heart.h5ad"
+)
+
+# As SingleCellExperiment
+sce <- schard::h5ad2sce("sn.heart.h5ad")
+
+# As Seurat
+seu <- schard::h5ad2seurat("sn.heart.h5ad")
+
+# Quick metadata
+obs <- schard::h5ad2data.frame("sn.heart.h5ad", "obs")
+head(obs)
+
+# Pull a reduction
+umap <- t(schard::h5ad2Matrix("sn.heart.h5ad", "/obsm/X_umap"))
+plot(umap[, 1:2], pch = 16, cex = 0.4, col = factor(obs$cell_state))
 ```
 
-There is no need to load whole object if you only need cell metadata:
-```R
-obs = schard::h5ad2data.frame('sn.heart.h5ad','obs')
-# one can load umap in the same way.
-# not sure about the name? lets see into h5ad:
-ls = rhdf5::h5ls('sn.heart.h5ad')
-ls[ls$group=='/obsm',] # so we have 'X_umap' here
-umap = t(schard::h5ad2Matrix('sn.heart.h5ad','/obsm/X_umap')) # I like it more transposed
-plot(umap[,1:2],pch=16,cex=0.4,col=factor(obs$cell_state))
+### Spatial (Visium)
+
+```r
+seu <- schard::h5ad2seurat_spatial("visium_sample.h5ad")
+Seurat::SpatialPlot(seu, features = "total_counts")
 ```
 
-# Alternatives
-There are two known alternatives:
-1. [sceasy](https://github.com/cellgeni/sceasy) uses reticulate and thus depends on python environment. Proved to be unstable and hard to use.
-2. [SeuratDisk](https://github.com/mojaveazure/seurat-disk) also uses rhdf5, but uses h5-based Seurat format as an intermediate that looks like overcomplication. Additionally,  SeuratDisk seems to be almost not supported and it fails even on examples from its own tutorial.
+---
 
-Despite all problems of both packages above they have clear advantage over schard: they allow not only to read h5ad into R but also to write it.
+## Writing H5AD files
+
+Write R objects back to scanpy-compatible H5AD:
+
+```r
+# Round-trip a SingleCellExperiment
+sce <- schard::h5ad2sce("input.h5ad")
+write_h5ad(sce, "output.h5ad")
+
+# scanpy can now read it:
+# >>> import scanpy as ad
+# >>> adata = ad.read_h5ad("output.h5ad")
+# >>> adata
+# AnnData object with n_obs × n_vars = 1000 × 20000
+#     obs: 'cell_type', 'batch'
+#     var: 'gene_symbol'
+#     obsm: 'X_umap', 'X_pca'
+
+# From a Seurat object
+seu <- schard::h5ad2seurat("input.h5ad")
+write_h5ad(seu, "output.h5ad")
+
+# From a list (manual construction)
+write_h5ad(
+  list(
+    X   = Matrix::rsparsematrix(100, 50, 0.1),
+    obs = data.frame(cell_type = sample(c("A", "B"), 100, TRUE)),
+    var = data.frame(gene_symbol = paste0("gene", 1:50)),
+    obsm = list(X_umap = matrix(runif(200), 100, 2))
+  ),
+  "output.h5ad"
+)
+```
+
+### What gets written
+
+| H5AD slot | SCE source | Seurat source |
+|---|---|---|
+| `/X` | First assay (counts) | `GetAssayData(slot = "counts")` |
+| `/obs` | `colData()` | `meta.data` |
+| `/var` | `rowData()` | Feature metadata + `rownames` |
+| `/obsm` | `reducedDims()` | `Reductions()` |
+| `/uns` | `metadata()` | _(not mapped yet)_ |
+
+The output is compatible with `scanpy.read_h5ad()` — same encoding-type conventions, CSR sparse matrix format, and factor→categorical mapping.
+
+---
+
+## Quality & Metrics
+
+| Metric | Before | After |
+|---|---|---|
+| Cyclomatic complexity (avg) | 9.8 | **6.6** 🔽 |
+| Functions | 9 | **21** |
+| Tests | 0 | **13** (49 expectations) |
+| CI | None | **GitHub Actions** (ubuntu + macOS) |
+
+Complexity baseline and post-refactor reports are in [`metrics/`](metrics/).
+
+---
+
+## Comparison with alternatives
+
+| Feature | **schard** | sceasy | SeuratDisk |
+|---|---|---|---|
+| **Read H5AD** | ✅ Pure R, rhdf5 | ✅ Uses reticulate | ✅ Uses h5Seurat intermediate |
+| **Write H5AD** | ✅ **v1.1.0** | ✅ | ✅ (via h5Seurat) |
+| **Spatial (Visium)** | ✅ | Partial | ❌ |
+| **Python dependency** | ❌ None | ✅ Requires | ❌ None |
+| **Performance** | Fast (direct HDF5) | Moderate (Python bridge) | Moderate (format conversion) |
+| **Maintenance** | Active | Low | Low |
+
+> The original `readme` noted schard lacked write support — that gap is now closed with `write_h5ad()`.
+
+---
+
+## Roadmap
+
+Planned improvements (from [`estrategia_tecnica.txt`](../estrategia_tecnica.txt)):
+
+- [x] **write_h5ad** — bidirectional H5AD workflows
+- [ ] **Interactive QC dashboard** — Shiny app for quality control
+- [ ] **Analytics layer** — cluster confidence, marker visualization
+- [x] **Test infrastructure** — testthat + CI
+- [x] **Code quality** — complexity reduction, structured errors
+
+---
+
+## License
+
+GPL-3. Original author: Pavel Mazin ([cellgeni/schard](https://github.com/cellgeni/schard)).
