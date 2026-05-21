@@ -19,41 +19,37 @@ launch_qc_dashboard <- function(object, ...) {
 #' @rdname launch_qc_dashboard
 #' @export
 launch_qc_dashboard.default <- function(object, ...) {
-  data <- normalize_to_list(object)
-  message("Data loaded successfully: ", nrow(data$obs), " cells x ", nrow(data$var), " genes")
-  message("QC columns detected:")
-  print(detect_qc_cols(data$obs))
-  invisible(data)
+  stop(
+    "Unsupported object type. Supported: list (from h5ad2list), ",
+    "SingleCellExperiment, Seurat, or character file path.",
+    call. = FALSE
+  )
 }
 
 #' @rdname launch_qc_dashboard
 #' @export
 launch_qc_dashboard.character <- function(object, replicate_col = NULL, qc_cols = NULL, loss_threshold = 25, ...) {
   data <- normalize_to_list(object)
-  message(sprintf("Loaded %s: %d cells x %d features", object, nrow(data$obs), nrow(data$var)))
-  invisible(data)
+  run_dashboard_app(data, qc_cols, replicate_col, loss_threshold)
 }
 
 #' @rdname launch_qc_dashboard
 #' @export
 launch_qc_dashboard.list <- function(object, replicate_col = NULL, qc_cols = NULL, loss_threshold = 25, ...) {
   data <- normalize_to_list(object)
-  message(sprintf("Loaded list: %d cells x %d features", nrow(data$obs), nrow(data$var)))
-  invisible(data)
+  run_dashboard_app(data, qc_cols, replicate_col, loss_threshold)
 }
 
 #' @rdname launch_qc_dashboard
 #' @export
 launch_qc_dashboard.SingleCellExperiment <- function(object, replicate_col = NULL, qc_cols = NULL, loss_threshold = 25, ...) {
   data <- normalize_to_list(object)
-  message(sprintf("Loaded SingleCellExperiment: %d cells x %d features", nrow(data$obs), nrow(data$var)))
-  invisible(data)
+  run_dashboard_app(data, qc_cols, replicate_col, loss_threshold)
 }
 
 #' @rdname launch_qc_dashboard
 #' @export
 launch_qc_dashboard.Seurat <- function(object, replicate_col = NULL, qc_cols = NULL, loss_threshold = 25, ...) {
   data <- normalize_to_list(object)
-  message(sprintf("Loaded Seurat: %d cells x %d features", nrow(data$obs), nrow(data$var)))
-  invisible(data)
+  run_dashboard_app(data, qc_cols, replicate_col, loss_threshold)
 }

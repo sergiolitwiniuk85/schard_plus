@@ -2,8 +2,7 @@ test_that("launch_qc_dashboard accepts character path", {
   fixture <- system.file("extdata", "test_matrix.h5ad", package = "schard")
   if (file.exists(fixture)) {
     result <- launch_qc_dashboard(fixture)
-    expect_true(is.list(result))
-    expect_true("obs" %in% names(result))
+    expect_s3_class(result, "shiny.appobj")
   } else {
     skip("schard test fixture not available")
   }
@@ -13,8 +12,7 @@ test_that("launch_qc_dashboard accepts list", {
   obs <- make_test_obs()
   data <- list(obs = obs, var = data.frame(gene = 1:5), X = NULL, obsm = NULL, uns = NULL)
   result <- launch_qc_dashboard(data)
-  expect_true(is.list(result))
-  expect_equal(nrow(result$obs), 50)
+  expect_s3_class(result, "shiny.appobj")
 })
 
 test_that("launch_qc_dashboard errors on invalid input", {
