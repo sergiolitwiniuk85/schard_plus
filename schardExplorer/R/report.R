@@ -110,10 +110,31 @@ qc_report.Seurat <- function(object, output_dir = ".", thresholds = list(pct_mit
 #' @param output_path Character, path to write the HTML file
 #' @return Invisibly returns output_path
 #' @keywords internal
-write_qc_html <- function(results, output_path) {
+write_qc_html <- function(results, output_path, replicate_data = NULL) {
   n_total <- length(results$pass)
   n_pass <- sum(results$pass)
   n_fail <- n_total - n_pass
+  pct_pass <- round(n_pass / n_total * 100, 1)
+  pct_fail <- round(n_fail / n_total * 100, 1)
+
+  rep_rows <- ""
+  if (!is.null(replicate_data) && nrow(replicate_data) > 0) {
+    for (i in seq_len(nrow(replicate_data))) {
+      r <- replicate_data[i, ]
+      cl <- if (isTRUE(r$warning)) ' class="warn"' else ""
+      rep_rows <- paste0(rep_rows, sprintf(
+        '<tr%s><td>%s</td><td>%d</td><td>%d</td><td>%d</td><td>%.1f%%</td><td>%.1f%%</td></tr>\n',
+        cl, r$replicate, r$total, r$passing, r$failing, r$pct_pass, r$pct_lost
+      ))
+    }
+  }
+
+  rep_section <- if (nzchar(rep_rows)) sprintf('
+<h2>Impact by Replicate</h2>
+<table>
+<tr><th>Replicate</th><th>Total</th><th>Passing</th><th>Failing</th><th>%% Pass</th><th>%% Lost</th></tr>
+%s
+</table>', rep_rows) else ""
 
   html <- sprintf('<!DOCTYPE html>
 <html>
@@ -125,6 +146,7 @@ th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
 th { background: #f5f5f5; }
 .pass { color: #2E86AB; }
 .fail { color: #A23B72; }
+.warn { background: #FFE4E1; }
 </style></head>
 <body>
 <h1>QC Report</h1>
@@ -136,8 +158,9 @@ th { background: #f5f5f5; }
 <tr><td>Passing</td><td class="pass">%d (%.1f%%%%)</td></tr>
 <tr><td>Failing</td><td class="fail">%d (%.1f%%%%)</td></tr>
 </table>
+%s
 </body></html>',
-    Sys.time(), n_total, n_pass, n_pass / n_total * 100, n_fail, n_fail / n_total * 100)
+    Sys.time(), n_total, n_pass, pct_pass, n_fail, pct_fail, rep_section)
 
   writeLines(html, output_path)
   invisible(output_path)

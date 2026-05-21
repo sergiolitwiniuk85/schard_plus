@@ -16,6 +16,8 @@ shiny_ui <- function(data, qc_detected, replicate_col) {
         shiny::selectInput("replicate_select", "Biological Replicate:",
                     choices = c("None" = ""),
                     selected = replicate_col %||% ""),
+        shiny::selectInput("replicate_filter", "Filter cluster impact by replicate:",
+                    choices = c("All" = "")),
         shiny::hr(),
         shiny::downloadButton("export_csv", "Export CSV"),
         shiny::downloadButton("export_html", "Export HTML Report")

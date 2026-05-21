@@ -1,4 +1,4 @@
-shiny_server <- function(input, output, session, data, qc_detected) {
+shiny_server <- function(input, output, session, data, qc_detected, replicate_col = NULL, loss_threshold = 25) {
   qc_metrics <- shiny::reactive({
     compute_qc_metrics(data()$obs, qc_detected)
   })
@@ -87,6 +87,22 @@ shiny_server <- function(input, output, session, data, qc_detected) {
     shiny::updateSelectInput(session, "color_by", choices = choices)
   })
 
+  shiny::observe({
+    shiny::req(data())
+    obs <- data()$obs
+    rep_candidates <- names(obs)[vapply(obs, function(x) {
+      is.character(x) || is.factor(x)
+    }, logical(1))]
+    choices <- c("None" = "")
+    for (col in rep_candidates) {
+      choices[[col]] <- col
+    }
+    shiny::updateSelectInput(session, "replicate_select", choices = choices)
+    if (!is.null(replicate_col()) && replicate_col() %in% rep_candidates) {
+      shiny::updateSelectInput(session, "replicate_select", selected = replicate_col())
+    }
+  })
+
   output$umap_plot <- plotly::renderPlotly({
     shiny::req(data())
     obsm <- data()$obsm
@@ -150,6 +166,20 @@ shiny_server <- function(input, output, session, data, qc_detected) {
     p
   })
 
+  shiny::observe({
+    shiny::req(data(), input$replicate_select)
+    if (input$replicate_select == "") {
+      shiny::updateSelectInput(session, "replicate_filter", choices = c("All" = ""))
+      return()
+    }
+    vals <- unique(data()$obs[[input$replicate_select]])
+    choices <- c("All" = "")
+    for (v in vals[!is.na(vals)]) {
+      choices[[as.character(v)]] <- as.character(v)
+    }
+    shiny::updateSelectInput(session, "replicate_filter", choices = choices)
+  })
+
   output$impact_cluster <- DT::renderDT({
     shiny::req(data(), filtered())
     obs <- data()$obs
@@ -170,11 +200,22 @@ shiny_server <- function(input, output, session, data, qc_detected) {
                           options = list(dom = "t")))
     }
 
-    groups <- obs[[cluster_col]]
-    total <- as.numeric(table(groups))
-    passing <- as.numeric(by(f$pass, groups, sum))
-    failing <- total - passing
-    pct_pass <- round(passing / total * 100, 1)
+    if (!is.null(input$replicate_filter) && input$replicate_filter != "") {
+      rep_filter <- input$replicate_filter
+      rep_col <- input$replicate_select
+      in_rep <- obs[[rep_col]] == rep_filter
+      groups <- obs[[cluster_col]][in_rep]
+      total <- as.numeric(table(groups))
+      passing <- as.numeric(by(f$pass[in_rep], groups, sum))
+      failing <- total - passing
+      pct_pass <- round(passing / total * 100, 1)
+    } else {
+      groups <- obs[[cluster_col]]
+      total <- as.numeric(table(groups))
+      passing <- as.numeric(by(f$pass, groups, sum))
+      failing <- total - passing
+      pct_pass <- round(passing / total * 100, 1)
+    }
 
     impact_df <- data.frame(
       Cluster = names(table(groups)),
@@ -194,26 +235,38 @@ shiny_server <- function(input, output, session, data, qc_detected) {
 
   output$impact_replicate <- DT::renderDT({
     shiny::req(data(), filtered())
+
     rep_col <- input$replicate_select
     if (is.null(rep_col) || rep_col == "") {
       return(DT::datatable(
-        data.frame(Message = "Select a replicate column to see per-replicate impact"),
+        data.frame(Message = "Select a replicate column above to see per-replicate impact"),
         options = list(dom = "t")
       ))
     }
 
     obs <- data()$obs
     f <- filtered()
-    impact <- impact_by_replicate(obs, rep_col, f$pass, loss_threshold = 25)
 
-    dt <- DT::datatable(impact, options = list(pageLength = 10, dom = "tip"),
-                        rownames = FALSE)
+    impact <- impact_by_replicate(obs, rep_col, f$pass, loss_threshold = loss_threshold)
 
-    if (any(impact$warning)) {
-      dt <- dt |> DT::formatStyle("warning",
-        target = "row",
-        backgroundColor = DT::styleEqual(c(TRUE), c("#FFE4E1")))
-    }
+    impact$pct_pass <- paste0(impact$pct_pass, "%")
+    impact$pct_lost <- paste0(impact$pct_lost, "%")
+
+    impact$warning <- ifelse(impact$warning, "> HIGH LOSS", "OK")
+
+    dt <- DT::datatable(impact,
+      options = list(
+        pageLength = 10,
+        dom = "tip",
+        rowCallback = DT::JS(
+          "function(row, data) {",
+          "  if (data[6] == '> HIGH LOSS') {",
+          "    $(row).css('background-color', '#FFE4E1');",
+          "  }",
+          "}"
+        )
+      ),
+      rownames = FALSE)
 
     dt
   })
@@ -222,11 +275,17 @@ shiny_server <- function(input, output, session, data, qc_detected) {
     filename = function() paste0("qc_filtered_cells_", Sys.Date(), ".csv"),
     content = function(file) {
       f <- filtered()
-      write.csv(data.frame(
-        cell_barcode = qc_metrics()$cell_barcode,
+      qc <- qc_metrics()
+      export_df <- data.frame(
+        cell_barcode = qc$cell_barcode,
         pass = f$pass,
-        fail_reason = f$fail_reason
-      ), file, row.names = FALSE)
+        fail_reason = f$fail_reason,
+        stringsAsFactors = FALSE
+      )
+      if (!is.null(input$replicate_select) && input$replicate_select != "") {
+        export_df$replicate <- data()$obs[[input$replicate_select]]
+      }
+      write.csv(export_df, file, row.names = FALSE)
     }
   )
 
@@ -235,7 +294,11 @@ shiny_server <- function(input, output, session, data, qc_detected) {
     content = function(file) {
       f <- filtered()
       results <- list(pass = f$pass, fail_reason = f$fail_reason, qc = qc_metrics())
-      write_qc_html(results, file)
+      rep_data <- NULL
+      if (!is.null(input$replicate_select) && input$replicate_select != "") {
+        rep_data <- impact_by_replicate(data()$obs, input$replicate_select, f$pass, loss_threshold)
+      }
+      write_qc_html(results, file, replicate_data = rep_data)
     }
   )
 }
