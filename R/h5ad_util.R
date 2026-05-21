@@ -1,8 +1,15 @@
-loadRequiredPackages = function(pkgs){
-  for(pkg in pkgs){
-    if(!require(pkg,character.only =TRUE))
-      stop(paste0('In order to use this functionality please install package "',pkg,'"'))
+loadRequiredPackages <- function(pkgs) {
+  for (pkg in pkgs) {
+    if (!requireNamespace(pkg, quietly = TRUE)) {
+      stop(
+        "Package '", pkg, "' is required. Please install it:\n",
+        "  install.packages('", pkg, "')\n",
+        "  # or for Bioconductor packages:\n",
+        "  BiocManager::install('", pkg, "')"
+      )
+    }
   }
+  invisible(TRUE)
 }
 
 #' Extracts data.frame from h5ad file
@@ -19,29 +26,34 @@ h5ad2data.frame = function(filename,name,keep.rownames.as.column=TRUE){
   collist = rhdf5::h5read(filename,name,read.attributes = TRUE)
   attr = attributes(collist)
 
-  # slashes in names may leads to nested structure, lets fix it
-  repeat{
-    ll = sapply(collist,length)
-    # candidates
-    inx_ = which(ll!=max(ll) & names(collist) != '__categories')
-    # remove factors
-    inx = c()
-    for(i in inx_){
-      # exclude other known nested structures
-      # if length is not 2, then it is not factor or masked vector
-      if(length(collist[[i]]) != 2 | (!all(names(collist[[i]]) %in% c("categories","codes")) &
-                                      !all(names(collist[[i]]) %in% c("mask","values"))))
-        inx = c(inx,i)
+  # HDF5 group flattening: slashes in column names create nested HDF5 groups
+  # that rhdf5 returns as sub-lists. Flatten them into top-level entries
+  # with "/" in the name so downstream code can handle them uniformly.
+  repeat {
+    ll <- vapply(collist, length, integer(1))
+    max_ll <- max(ll)
+    candidates <- which(ll != max_ll & names(collist) != "__categories")
+
+    # exclude factors (categories/codes) and masked arrays (mask/values)
+    irregular <- c()
+    for (i in candidates) {
+      val <- collist[[i]]
+      if (!is.list(val) || length(val) != 2 ||
+          (!all(names(val) %in% c("categories", "codes")) &&
+           !all(names(val) %in% c("mask", "values")))) {
+        irregular <- c(irregular, i)
+      }
     }
-    if(length(inx) == 0)
-      break
-    # fix first
-    inx = inx[1]
-    for(i in seq_len(length(collist[[inx]]))){
-      n = paste0(names(collist)[inx],'/',names(collist[[inx]])[i])
-      collist[[n]] = collist[[inx]][[i]]
+
+    if (length(irregular) == 0) break
+
+    idx <- irregular[1]
+    children <- collist[[idx]]
+    for (child_name in names(children)) {
+      flat_name <- paste0(names(collist)[idx], "/", child_name)
+      collist[[flat_name]] <- children[[child_name]]
     }
-    collist[[inx]] = NULL
+    collist[[idx]] <- NULL
   }
 
   # parse regular factors, vectors and masked arrays
@@ -69,8 +81,8 @@ h5ad2data.frame = function(filename,name,keep.rownames.as.column=TRUE){
   }
 
   ll = sapply(collist,length)
-  if(any(ll != max(ll)))
-    warning("unexpected data.frame format, some columns can be missed")
+  if (any(ll != max(ll)))
+    warning("h5ad2data.frame: unexpected data.frame format for group '", name, "' in file '", filename, "', some columns may be missing")
   res = as.data.frame(collist[ll==max(ll)],check.names=FALSE)
 
   index.col = NULL
@@ -154,7 +166,7 @@ h5ad2Matrix = function(filename,name,use_spam = FALSE){
   }
   # if there is data subgroup then it should be sparse. We can only load sparse if it has less than 2^32-1 values
   if(!is.null(nvalues) && length(nvalues)==1 && nvalues >= 2^31){
-    stop("The object you are trying to load is too large for Seurat and R in general: it has more than (2^31 -1) non-zero values in expression matrix. Consider setting use_spam=TRUE or use python.\n For more information please check:\n 1. https://github.com/cellgeni/schard/issues/1\n 2. https://github.com/chanzuckerberg/cellxgene-census/issues/1095")
+    stop("h5ad2Matrix: The object '", name, "' in file '", filename, "' is too large for Seurat and R in general: it has more than (2^31 -1) non-zero values. Consider setting use_spam=TRUE or use python.\n For more information please check:\n 1. https://github.com/cellgeni/schard/issues/1\n 2. https://github.com/chanzuckerberg/cellxgene-census/issues/1095")
   }
   m = rhdf5::h5read(filename,name)
   format = attr$`encoding-type`
@@ -180,13 +192,13 @@ h5ad2Matrix = function(filename,name,use_spam = FALSE){
 
 
 
-#' Load visium images from h5ad
+#' Load Visium images from h5ad
 #'
+#' @param filename path to h5ad file with Visium spatial data
 #'
-#' @param filename path 2 visium h5ad
+#' @return list of slides. Each slide has scale.factors, hires, and lowres images
 #'
-#' @return list of slides. Each slide is list with scale.fctors, hires and lowres images
-#'
+#' @keywords internal
 #' @examples
 #' imgs = h5ad2images('adata.h5ad')
 h5ad2images = function(filename){

@@ -1,17 +1,19 @@
 #' Loads main parts of h5ad file as ordinary R list
 #'
 #' @param filename path to h5ad file
-#' @param load.raw logical, whether to load adata.raw.X instead of adata.X
+#' @param use.raw logical, whether to load adata.raw.X instead of adata.X
 #' @param load.obsm logical, whether to load adata.obsm.
 #' @param load.X logical, whether to load expression. Set all expressions to zeroes if FALSE. It can be much faster not to load expression
-#' @param forSeurat logical, should data be formated to be compatable with Seurat
+#' @param forSeurat \strong{Deprecated}. Use \code{\link{h5ad2seurat}} instead. If \code{TRUE}, renames var rownames (underscore to dash) for Seurat compatibility.
 #' @param use_spam logical, whether to use spam instead of Matrix. Can be used if matrix has more than 2^31 -1 non-zero elements. Keep in mind that spam is not compatible with Seurat
 #'
-#' @return list with following elements:
-#'  obs - data.frame
-#'  var - data.frame
-#'  X - matrix (dense or sparse - as it was in X)
-#'  obsm - list of matrices from obsm (presumably reduced dimensions)
+#' @return A list with components:
+#' \describe{
+#'   \item{obs}{data.frame of cell metadata}
+#'   \item{var}{data.frame of feature metadata}
+#'   \item{X}{expression matrix (dense or sparse, as stored in the H5AD)}
+#'   \item{obsm}{list of matrices from /obsm (reduced dimensions, e.g., PCA, UMAP)}
+#' }
 #' @export
 h5ad2list = function(filename,use.raw=FALSE,load.obsm=FALSE,load.X = TRUE,forSeurat=FALSE,use_spam=FALSE){
   h5struct = rhdf5::h5ls(filename)
@@ -21,8 +23,8 @@ h5ad2list = function(filename,use.raw=FALSE,load.obsm=FALSE,load.X = TRUE,forSeu
   res$obs = h5ad2data.frame(filename,'obs')
 
   if(use.raw){
-    if(!any(h5struct$group=='/raw/X')){
-      stop(paste0('There is no raw slot in "',filename,'" please set "use.raw" to FALSE'))
+    if (!any(h5struct$group == "/raw/X")) {
+      stop("h5ad2list: There is no raw slot in '", filename, "'. Please set use.raw=FALSE")
     }
     res$var = h5ad2data.frame(filename,'raw/var')
     expname = 'raw/X'
@@ -35,12 +37,12 @@ h5ad2list = function(filename,use.raw=FALSE,load.obsm=FALSE,load.X = TRUE,forSeu
   }else{
     res$X = Matrix::sparseMatrix(i=integer(0),p=0L,x=numeric(0),dims=c(nrow(res$var),nrow(res$obs)))
   }
-  if(forSeurat){
-    # Seurat for some reasons doesn't like underscores in feature names (don't ask me why)
-    rownames(res$var) = gsub('_','-',rownames(res$var))
-    # and it also hates when names are empty
-    empty_inxs = which(rownames(res$var) == '')
-    rownames(res$var)[empty_inxs] = paste0(rep('unnamed_gene_',length(empty_inxs)),empty_inxs)
+  if (forSeurat) {
+    warning("'forSeurat' is deprecated in h5ad2list(). Use h5ad2seurat() directly instead.")
+    # Seurat doesn't like underscores in feature names
+    rownames(res$var) <- gsub("_", "-", rownames(res$var))
+    empty <- which(rownames(res$var) == "")
+    rownames(res$var)[empty] <- paste0("unnamed_gene_", empty)
   }
   if(!use_spam){
     rownames(res$X) = rownames(res$var)
@@ -113,6 +115,14 @@ h5ad2seurat = function(filename,use.raw=FALSE,load.obsm=TRUE,assay='RNA',load.X=
   loadRequiredPackages('Seurat')
   data = h5ad2list(filename,use.raw = use.raw,load.obsm = load.obsm,load.X=load.X,forSeurat=TRUE)
 
+  # Seurat doesn't like underscores in feature names
+  rownames(data$var) <- gsub("_", "-", rownames(data$var))
+  empty <- which(rownames(data$var) == "")
+  rownames(data$var)[empty] <- paste0("unnamed_gene_", empty)
+  if (!is.null(rownames(data$X))) {
+    rownames(data$X) <- rownames(data$var)
+  }
+
   # guess whether data is scaled
   scaled = FALSE
   # scaled data cannot be sparse (hopefully!)
@@ -170,6 +180,15 @@ h5ad2seurat_spatial = function(filename,use.raw=FALSE,load.obsm=TRUE,simplify=TR
     image.type = ifelse(packageVersion('Seurat') > '5.1','VisiumV2','VisiumV1')
   }
   data = h5ad2list(filename,use.raw = use.raw,load.obsm = TRUE,load.X=load.X,forSeurat=TRUE) # load obsm in any case - we need spatial info
+
+  # Seurat doesn't like underscores in feature names
+  rownames(data$var) <- gsub("_", "-", rownames(data$var))
+  empty <- which(rownames(data$var) == "")
+  rownames(data$var)[empty] <- paste0("unnamed_gene_", empty)
+  if (!is.null(rownames(data$X))) {
+    rownames(data$X) <- rownames(data$var)
+  }
+
   images = h5ad2images(filename)
   results = list()
 
@@ -192,7 +211,7 @@ h5ad2seurat_spatial = function(filename,use.raw=FALSE,load.obsm=TRUE,simplify=TR
       }
       data$obs[,library_id_field] = names(images)
     }else{
-      stop("The h5ad seems to contain multiple visium samples but library is not specified correctly in adata.obs. There should be a column that matches keys is adata.uns.spatial.")
+      stop("h5ad2seurat_spatial: The file '", filename, "' appears to contain multiple Visium samples but no column in obs matches the library IDs in uns/spatial. There should be a column in obs that matches the library names in uns/spatial.")
     }
   }
   # rename spatial to X_spatial
@@ -234,11 +253,11 @@ h5ad2seurat_spatial = function(filename,use.raw=FALSE,load.obsm=TRUE,simplify=TR
     scale.factors = images[[lid]]$scale.factors
     # if specified resolution is not in h5ad, try another
     if(!(img.res %in% names(images[[lid]]))){
-      warning(paste0("'",img.res,"' is not avaliable, trying another resolution"))
+      warning("h5ad2seurat_spatial: '", img.res, "' is not available for sample '", lid, "', trying another resolution")
       img.res = setdiff(c('hires','lowres'),img.res)
     }
     if(!(img.res %in% names(images[[lid]]))){
-      stop('No image avaliable in h5ad')
+      stop("h5ad2seurat_spatial: No image available for sample '", lid, "' in file '", filename, "'")
     }
 
     if(img.res != 'lowres'){
@@ -275,7 +294,7 @@ h5ad2seurat_spatial = function(filename,use.raw=FALSE,load.obsm=TRUE,simplify=TR
                        molecules = fov@molecules, assay = fov@assay, key = fov@key,
                        image = image, scale.factors = scale.factors, coords_x_orientation = "horizontal")
     } else{
-      stop(paste0("Unrecognized image.type: '",image.type,"'"))
+      stop("h5ad2seurat_spatial: Unrecognized image.type '", image.type, "'. Must be 'VisiumV1' or 'VisiumV2'")
     }
 
     seu[[lid]] = image
