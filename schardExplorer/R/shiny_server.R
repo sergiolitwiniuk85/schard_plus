@@ -111,16 +111,22 @@ shiny_server <- function(input, output, session, data, qc_detected, replicate_co
         plotly::layout(title = "No reduced dimensions available"))
     }
 
+    # Flexible reduction name detection: match by prefix / keyword
+    obsm_names <- names(obsm)
     reduction_name <- NULL
-    if ("X_umap" %in% names(obsm)) {
-      reduction_name <- "X_umap"
-    } else if ("X_pca" %in% names(obsm)) {
-      reduction_name <- "X_pca"
+    umap_idx <- grep("umap", obsm_names, ignore.case = TRUE)
+    pca_idx  <- grep("pca",  obsm_names, ignore.case = TRUE)
+    if (length(umap_idx) > 0) {
+      reduction_name <- obsm_names[umap_idx[1]]
+    } else if (length(pca_idx) > 0) {
+      reduction_name <- obsm_names[pca_idx[1]]
     } else {
-      reduction_name <- names(obsm)[1]
+      reduction_name <- obsm_names[1]
     }
 
     coords <- obsm[[reduction_name]]
+    shiny::req(NCOL(coords) >= 2)
+
     f <- filtered()
     qc <- qc_metrics()
 
@@ -132,29 +138,36 @@ shiny_server <- function(input, output, session, data, qc_detected, replicate_co
       stringsAsFactors = FALSE
     )
 
-    color_col <- "qc_status"
-    color_title <- "QC Status"
-
-    if (input$color_by != "qc_status") {
-      col_name <- input$color_by
-      if (col_name %in% colnames(data()$obs)) {
-        plot_df$color_val <- as.character(data()$obs[[col_name]])
-        color_col <- "color_val"
-        color_title <- col_name
-      }
+    # Build the color vector and hover text
+    if (input$color_by != "qc_status" &&
+        input$color_by %in% colnames(data()$obs)) {
+      color_vals <- as.character(data()$obs[[input$color_by]])
+      color_title <- input$color_by
+      plot_df$hover_text <- paste0(
+        "Cell: ", plot_df$cell_barcode,
+        "<br>", color_title, ": ", color_vals
+      )
+    } else {
+      color_vals <- plot_df$qc_status
+      color_title <- "QC Status"
+      plot_df$hover_text <- paste0(
+        "Cell: ", plot_df$cell_barcode,
+        "<br>QC Status: ", color_vals
+      )
     }
 
-    p <- plotly::plot_ly(
+    plotly::plot_ly(
       data = plot_df,
       x = ~UMAP1,
       y = ~UMAP2,
-      color = ~get(color_col),
-      colors = if (color_col == "qc_status") c("#A23B72", "#2E86AB") else NULL,
+      color = color_vals,
+      colors = if (identical(color_title, "QC Status")) c("#A23B72", "#2E86AB") else NULL,
       type = "scatter",
       mode = "markers",
       marker = list(size = 3),
-      text = ~paste("Cell:", cell_barcode, "<br>", color_title, ":", get(color_col)),
-      hoverinfo = "text"
+      text = ~hover_text,
+      hoverinfo = "text",
+      showlegend = TRUE
     ) |>
       plotly::toWebGL() |>
       plotly::layout(
@@ -162,8 +175,6 @@ shiny_server <- function(input, output, session, data, qc_detected, replicate_co
         xaxis = list(title = "UMAP 1"),
         yaxis = list(title = "UMAP 2")
       )
-
-    p
   })
 
   shiny::observe({
