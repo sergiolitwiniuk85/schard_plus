@@ -167,7 +167,9 @@ h5ad2Matrix = function(filename,name,use_spam = FALSE){
     mtx = m
   }else{
     if(startsWith(format,'csr')){
-      mtx = Matrix::sparseMatrix(i=m$indices+1, p=m$indptr,x = as.numeric(m$data),dims = rev(shape))
+      mtx = Matrix::sparseMatrix(j=m$indices+1, p=m$indptr,x = as.numeric(m$data), repr="R")
+      if(!inherits(mtx, "dgCMatrix")) mtx = as(mtx, "CsparseMatrix")
+      if(identical(as.integer(dim(mtx)), as.integer(shape))) mtx = Matrix::t(mtx)
     }else{
       mtx = Matrix::sparseMatrix(i=m$indices+1, p=m$indptr,x = as.numeric(m$data),dims = shape)
       mtx = Matrix::t(mtx)

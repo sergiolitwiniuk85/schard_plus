@@ -7,22 +7,30 @@ local({
 })
 
 library(rhdf5)
+library(Matrix)
 
 set.seed(42)
 
 n_obs <- 10
 n_var <- 5
 
-X_data <- as.numeric(sample(1:100, 20, replace = TRUE))
-X_indices <- as.integer(sample(0:(n_var - 1), 20, replace = TRUE))
-csr_counts <- tabulate(sample(1:n_obs, 20, replace = TRUE), n_obs)
-X_indptr <- as.integer(c(0, cumsum(csr_counts)))
+dense <- matrix(
+  sample(c(0, 1:10), n_obs * n_var, replace = TRUE, prob = c(0.6, rep(0.4/10, 10))),
+  nrow = n_obs, ncol = n_var
+)
+dimnames(dense) <- list(
+  sprintf("cell_%03d", seq_len(n_obs)),
+  sprintf("gene_%03d", seq_len(n_var))
+)
+csr <- as(as(dense, "dgCMatrix"), "RsparseMatrix")
 
-obs_names <- sprintf("cell_%03d", seq_len(n_obs))
-var_names <- sprintf("gene_%03d", seq_len(n_var))
+obs_names <- rownames(dense)
+var_names <- colnames(dense)
 batch <- as.character(sample(c("a", "b"), n_obs, replace = TRUE))
 
 obsm <- matrix(rnorm(n_obs * 5), nrow = n_obs)
+rownames(obsm) <- obs_names
+colnames(obsm) <- paste0("PC", 1:5)
 
 out <- "inst/extdata/test_matrix.h5ad"
 if (file.exists(out)) file.remove(out)
@@ -38,9 +46,9 @@ h5createGroup(out, "var")
 h5write(var_names, out, "var/_index")
 
 h5createGroup(out, "X")
-h5write(X_data, out, "X/data")
-h5write(X_indices, out, "X/indices")
-h5write(X_indptr, out, "X/indptr")
+h5write(as.numeric(csr@x), out, "X/data")
+h5write(as.integer(csr@j), out, "X/indices")
+h5write(as.integer(csr@p), out, "X/indptr")
 
 h5createGroup(out, "obsm")
 h5write(obsm, out, "obsm/X_pca")
@@ -62,7 +70,7 @@ H5Gclose(gid)
 gid <- H5Gopen(fid, "X")
 h5writeAttribute("csr_matrix", gid, "encoding-type")
 h5writeAttribute("0.1.0", gid, "encoding-version")
-h5writeAttribute(c(n_var, n_obs), gid, "shape")
+h5writeAttribute(dim(dense), gid, "shape")
 H5Gclose(gid)
 
 did <- H5Dopen(fid, "obsm/X_pca")

@@ -23,7 +23,7 @@
   gid <- rhdf5::H5Gopen(fid, group_name)
   rhdf5::h5writeAttribute("csr_matrix", gid, "encoding-type")
   rhdf5::h5writeAttribute("0.1.0", gid, "encoding-version")
-  rhdf5::h5writeAttribute(dim(mat), gid, "shape")
+  rhdf5::  h5writeAttribute(dim(csr), gid, "shape")
   rhdf5::H5Gclose(gid)
 }
 
@@ -141,7 +141,7 @@ write_h5ad <- function(object, file, ...) {
 write_h5ad.SingleCellExperiment <- function(object, file, ...) {
   loadRequiredPackages("SingleCellExperiment")
 
-  mat <- SummarizedExperiment::assay(object, 1)
+  mat <- Matrix::t(SummarizedExperiment::assay(object, 1))
   obs_df <- as.data.frame(SummarizedExperiment::colData(object))
   var_df <- as.data.frame(SummarizedExperiment::rowData(object))
 
@@ -158,7 +158,7 @@ write_h5ad.SingleCellExperiment <- function(object, file, ...) {
 write_h5ad.Seurat <- function(object, file, ...) {
   loadRequiredPackages("Seurat")
 
-  mat <- Seurat::GetAssayData(object, slot = "counts")
+  mat <- Matrix::t(Seurat::GetAssayData(object, slot = "counts"))
 
   obs_df <- object[[]]
 
