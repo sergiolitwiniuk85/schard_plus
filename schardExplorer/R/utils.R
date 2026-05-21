@@ -10,13 +10,34 @@ normalize_to_list <- function(object) {
     if (!file.exists(object)) {
       stop("File not found: ", object, call. = FALSE)
     }
-    return(schard::h5ad2list(object))
+    return(schard::h5ad2list(object, load.obsm = TRUE))
   }
   if (inherits(object, "SingleCellExperiment")) {
-    return(schard::h5ad2list(object))
+    loadRequiredPackages("SingleCellExperiment")
+    obsm <- SingleCellExperiment::reducedDims(object)
+    names(obsm) <- sub("^", "X_", tolower(names(obsm)))
+    return(list(
+      X = SummarizedExperiment::assay(object),
+      obs = as.data.frame(SummarizedExperiment::colData(object)),
+      var = as.data.frame(SummarizedExperiment::rowData(object)),
+      obsm = obsm,
+      uns = list()
+    ))
   }
   if (inherits(object, "Seurat")) {
-    return(schard::h5ad2list(object))
+    loadRequiredPackages("Seurat")
+    assay <- Seurat::DefaultAssay(object)
+    obsm <- list()
+    for (dr in Seurat::Reductions(object)) {
+      obsm[[paste0("X_", tolower(dr))]] <- Seurat::Embeddings(object, reduction = dr)
+    }
+    return(list(
+      X = Seurat::GetAssayData(object, assay = assay, slot = "counts"),
+      obs = object[[]],
+      var = as.data.frame(object[[assay]][[]]),
+      obsm = obsm,
+      uns = list()
+    ))
   }
   if (is.list(object) && !is.null(object$obs)) {
     return(object)
