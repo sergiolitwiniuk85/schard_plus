@@ -179,9 +179,14 @@ h5ad2Matrix = function(filename,name,use_spam = FALSE){
     mtx = m
   }else{
     if(startsWith(format,'csr')){
-      mtx = Matrix::sparseMatrix(j=m$indices+1, p=m$indptr,x = as.numeric(m$data), repr="R")
+      # Always pass dims=shape because CSR may omit trailing all-zero columns
+      # from indices. Without dims, sparseMatrix infers ncol from max(indices)+1,
+      # which undercounts when trailing columns are all zero.
+      mtx = Matrix::sparseMatrix(j=m$indices+1, p=m$indptr, x = as.numeric(m$data),
+                                 dims = as.integer(shape), repr="R")
       if(!inherits(mtx, "dgCMatrix")) mtx = as(mtx, "CsparseMatrix")
-      if(identical(as.integer(dim(mtx)), as.integer(shape))) mtx = Matrix::t(mtx)
+      # H5AD stores X as (n_obs, n_var). Transpose to (n_var, n_obs) for R.
+      mtx = Matrix::t(mtx)
     }else{
       mtx = Matrix::sparseMatrix(i=m$indices+1, p=m$indptr,x = as.numeric(m$data),dims = shape)
       mtx = Matrix::t(mtx)
