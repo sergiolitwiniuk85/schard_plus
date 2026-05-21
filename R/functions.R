@@ -45,6 +45,32 @@ h5ad2list = function(filename,use.raw=FALSE,load.obsm=FALSE,load.X = TRUE,forSeu
     rownames(res$var)[empty] <- paste0("unnamed_gene_", empty)
   }
   if(!use_spam){
+    # Validate dimensions before assigning dimnames
+    if (nrow(res$X) != length(rownames(res$var))) {
+      stop(
+        "h5ad2list: Dimension mismatch in '", filename, "'.\n",
+        "  The X matrix has ", nrow(res$X), " features (rows), but var has ",
+        length(rownames(res$var)), " entries.\n",
+        "  This means the number of genes in the expression matrix does not match ",
+        "the gene metadata (var). The file may be corrupted.\n",
+        "  Try:\n",
+        "    1. Open the file with scanpy and verify it loads correctly:\n",
+        "       >>> import scanpy as ad; adata = ad.read_h5ad('", filename, "')\n",
+        "       >>> adata\n",
+        "    2. If it works in scanpy, report this as a bug.\n",
+        "    3. If it doesn't work in scanpy, the file is malformed.",
+        call. = FALSE
+      )
+    }
+    if (ncol(res$X) != length(rownames(res$obs))) {
+      stop(
+        "h5ad2list: Dimension mismatch in '", filename, "'.\n",
+        "  The X matrix has ", ncol(res$X), " cells (columns), but obs has ",
+        length(rownames(res$obs)), " entries.\n",
+        "  The cell metadata (obs) does not match the expression matrix dimensions.",
+        call. = FALSE
+      )
+    }
     rownames(res$X) = rownames(res$var)
     colnames(res$X) = rownames(res$obs)
   }
