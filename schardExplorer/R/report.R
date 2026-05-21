@@ -1,7 +1,7 @@
 #' Generate a batch QC report
 #'
 #' Runs QC filtering and generates static plots + CSV summary.
-#' Does NOT require Shiny — runs in any R environment.
+#' Does NOT require Shiny \u2014 runs in any R environment.
 #'
 #' @param object Single-cell object: list, SingleCellExperiment, Seurat, or .h5ad path.
 #' @param output_dir Directory to write report files.
@@ -19,7 +19,12 @@ qc_report <- function(object, ...) {
 
 #' @rdname qc_report
 #' @export
-qc_report.default <- function(object, output_dir = ".", thresholds = list(pct_mito = 10), replicate_col = NULL, qc_cols = NULL, loss_threshold = 25, ...) {
+qc_report.default <- function(object, output_dir = ".",
+                               thresholds = list(pct_mito = 10),
+                               replicate_col = NULL,
+                               qc_cols = NULL,
+                               loss_threshold = 25,
+                               ...) {
   data <- normalize_to_list(object)
 
   if (!dir.exists(output_dir)) {
@@ -29,13 +34,46 @@ qc_report.default <- function(object, output_dir = ".", thresholds = list(pct_mi
     stop("Cannot create output directory: ", output_dir, call. = FALSE)
   }
 
+  qc <- compute_qc_metrics(data$obs, qc_cols)
   filtered <- apply_filter_thresholds(data$obs, thresholds, qc_cols)
-
-  n_pass <- sum(filtered$pass)
   n_total <- length(filtered$pass)
-  message(sprintf("QC Report: %d/%d cells pass (%.1f%%)", n_pass, n_total, n_pass / n_total * 100))
+  n_pass <- sum(filtered$pass)
 
-  message("Report preview written to: ", output_dir)
+  cells_out <- data.frame(
+    cell_barcode = qc$cell_barcode,
+    pass = filtered$pass,
+    fail_reason = filtered$fail_reason,
+    qc[, !colnames(qc) %in% "cell_barcode", drop = FALSE],
+    stringsAsFactors = FALSE
+  )
+  write.csv(cells_out, file.path(output_dir, "filtered_cells.csv"), row.names = FALSE)
+
+  if (!is.null(data$obsm) && length(data$obsm) > 0) {
+    p <- plot_umap_qc(data$obsm, filtered$pass)
+    ggplot2::ggsave(file.path(output_dir, "umap_qc.png"), p, width = 8, height = 6, dpi = 150)
+  }
+
+  qc_plots <- plot_qc_distributions(qc, filtered$pass)
+  if (length(qc_plots) > 0) {
+    for (nm in names(qc_plots)) {
+      ggplot2::ggsave(file.path(output_dir, paste0("qc_", nm, ".png")),
+                      qc_plots[[nm]], width = 6, height = 4, dpi = 150)
+    }
+  }
+
+  if (!is.null(replicate_col)) {
+    impact <- impact_by_replicate(data$obs, replicate_col, filtered$pass, loss_threshold)
+    write.csv(impact, file.path(output_dir, "impact_by_replicate.csv"), row.names = FALSE)
+
+    p <- plot_impact_barplot(impact, "replicate", "Impact by Replicate")
+    ggplot2::ggsave(file.path(output_dir, "impact_by_replicate.png"), p, width = 8, height = 5, dpi = 150)
+  }
+
+  results <- list(pass = filtered$pass, fail_reason = filtered$fail_reason, qc = qc)
+  write_qc_html(results, file.path(output_dir, "qc_summary.html"))
+
+  message(sprintf("QC Report: %d/%d cells pass (%.1f%%) \u2192 %s",
+                  n_pass, n_total, n_pass / n_total * 100, output_dir))
 
   data$pass <- filtered$pass
   data$fail_reason <- filtered$fail_reason
@@ -64,4 +102,43 @@ qc_report.SingleCellExperiment <- function(object, output_dir = ".", thresholds 
 #' @export
 qc_report.Seurat <- function(object, output_dir = ".", thresholds = list(pct_mito = 10), replicate_col = NULL, qc_cols = NULL, loss_threshold = 25, ...) {
   NextMethod()
+}
+
+#' Write a simple self-contained QC HTML report
+#'
+#' @param results List with elements: pass (logical), fail_reason (character), qc (data.frame)
+#' @param output_path Character, path to write the HTML file
+#' @return Invisibly returns output_path
+#' @keywords internal
+write_qc_html <- function(results, output_path) {
+  n_total <- length(results$pass)
+  n_pass <- sum(results$pass)
+  n_fail <- n_total - n_pass
+
+  html <- sprintf('<!DOCTYPE html>
+<html>
+<head><title>QC Report</title>
+<style>
+body { font-family: -apple-system, sans-serif; max-width: 960px; margin: 2em auto; }
+table { border-collapse: collapse; width: 100%%; }
+th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+th { background: #f5f5f5; }
+.pass { color: #2E86AB; }
+.fail { color: #A23B72; }
+</style></head>
+<body>
+<h1>QC Report</h1>
+<p>Generated: %s</p>
+<h2>Summary</h2>
+<table>
+<tr><th>Metric</th><th>Value</th></tr>
+<tr><td>Total cells</td><td>%d</td></tr>
+<tr><td>Passing</td><td class="pass">%d (%.1f%%%%)</td></tr>
+<tr><td>Failing</td><td class="fail">%d (%.1f%%%%)</td></tr>
+</table>
+</body></html>',
+    Sys.time(), n_total, n_pass, n_pass / n_total * 100, n_fail, n_fail / n_total * 100)
+
+  writeLines(html, output_path)
+  invisible(output_path)
 }
