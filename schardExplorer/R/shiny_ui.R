@@ -20,7 +20,13 @@ shiny_ui <- function(data, qc_detected, replicate_col) {
                     choices = c("All" = "")),
         shiny::hr(),
         shiny::downloadButton("export_csv", "Export CSV"),
-        shiny::downloadButton("export_html", "Export HTML Report")
+        shiny::downloadButton("export_html", "Export HTML Report"),
+        shiny::hr(),
+        shiny::actionButton("save_h5ad", "Save Filtered H5AD",
+          class = "btn-primary",
+          icon = shiny::icon("download"),
+          onclick = "this.disabled=true; this.innerHTML='Saving...';"
+        )
       )
     ),
 

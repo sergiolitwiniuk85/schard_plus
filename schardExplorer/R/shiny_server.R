@@ -312,4 +312,47 @@ shiny_server <- function(input, output, session, data, qc_detected, replicate_co
       write_qc_html(results, file, replicate_data = rep_data)
     }
   )
+
+  # Save filtered H5AD — writes to working directory (not downloadHandler)
+  shiny::observeEvent(input$save_h5ad, {
+    f <- filtered()
+    n_pass <- sum(f$pass)
+    if (n_pass == 0) {
+      shiny::showNotification("No cells pass the current filters. Nothing to save.",
+        type = "error", duration = 5)
+      return()
+    }
+
+    shiny::showNotification(
+      paste0("Writing filtered H5AD (", n_pass, " cells)..."), type = "info")
+    on.exit(
+      shiny::showNotification(
+        paste0("Saved: qc_filtered_", Sys.Date(), ".h5ad"),
+        type = "message", duration = 5)
+    )
+
+    lst <- data()
+    keep <- f$pass
+
+    filtered_list <- list(
+      X = lst$X[, keep, drop = FALSE],
+      obs = lst$obs[keep, , drop = FALSE],
+      var = lst$var,
+      obsm = lapply(lst$obsm, function(m) {
+        if (is.matrix(m) || inherits(m, "Matrix")) {
+          m[keep, , drop = FALSE]
+        } else m
+      })
+    )
+
+    filename <- paste0("qc_filtered_", Sys.Date(), ".h5ad")
+
+    tryCatch(
+      schard::write_h5ad(filtered_list, filename),
+      error = function(e) {
+        shiny::showNotification(paste0("Error saving H5AD: ", e$message),
+          type = "error", duration = 10)
+      }
+    )
+  })
 }
