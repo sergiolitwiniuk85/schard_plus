@@ -136,30 +136,62 @@ Complexity baseline and post-refactor reports are in [`metrics/`](metrics/).
 
 ---
 
+---
+
+## schardExplorer — Interactive QC Dashboard
+
+[schardExplorer](schardExplorer/) is a companion R package that provides interactive and batch QC for single-cell data.
+
+### Visual mode
+
+```r
+library(schardExplorer)
+
+# Launch interactive dashboard from any loaded object
+launch_qc_dashboard("data.h5ad")
+launch_qc_dashboard(sce)     # SingleCellExperiment
+launch_qc_dashboard(seu)     # Seurat
+launch_qc_dashboard(data)    # list from h5ad2list()
+```
+
+Opens a Shiny app with:
+- **QC sliders** — real-time thresholds for Mito%, gene counts, UMI counts, doublet scores
+- **Interactive UMAP** — plotly with dynamic coloring (pass/fail, cluster, replicate, any metadata)
+- **Per-cluster impact** — DT table showing cells lost per cluster at current thresholds
+- **Biological replicate tracking** — per-replicate summary with configurable loss warnings
+- **CSV + HTML export** — filtered cells, thresholds, and per-replicate stats
+
+### Batch mode
+
+```r
+# Generate static report — no browser needed, runs anywhere
+qc_report("data.h5ad", "qc_output/",
+  thresholds = list(pct_mito = 10, n_genes = c(500, 6000)))
+```
+
+Produces: `filtered_cells.csv`, UMAP/QC distribution plots, impact barplots, and self-contained HTML summary.
+
+### Install
+
+```r
+remotes::install_github("sergiolitwiniuk85/schard_plus", subdir = "schardExplorer")
+```
+
+See the [schardExplorer README](schardExplorer/) for full documentation.
+
+---
+
 ## Comparison with alternatives
 
 | Feature | **schard** | sceasy | SeuratDisk |
 |---|---|---|---|
 | **Read H5AD** | ✅ Pure R, rhdf5 | ✅ Uses reticulate | ✅ Uses h5Seurat intermediate |
 | **Write H5AD** | ✅ **v1.1.0** | ✅ | ✅ (via h5Seurat) |
+| **QC Dashboard** | ✅ **schardExplorer** | ❌ | ❌ |
 | **Spatial (Visium)** | ✅ | Partial | ❌ |
 | **Python dependency** | ❌ None | ✅ Requires | ❌ None |
 | **Performance** | Fast (direct HDF5) | Moderate (Python bridge) | Moderate (format conversion) |
 | **Maintenance** | Active | Low | Low |
-
-> The original `readme` noted schard lacked write support — that gap is now closed with `write_h5ad()`.
-
----
-
-## Roadmap
-
-Planned improvements (from [`estrategia_tecnica.txt`](../estrategia_tecnica.txt)):
-
-- [x] **write_h5ad** — bidirectional H5AD workflows
-- [ ] **Interactive QC dashboard** — Shiny app for quality control
-- [ ] **Analytics layer** — cluster confidence, marker visualization
-- [x] **Test infrastructure** — testthat + CI
-- [x] **Code quality** — complexity reduction, structured errors
 
 ---
 
