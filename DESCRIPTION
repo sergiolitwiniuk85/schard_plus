@@ -1,24 +1,39 @@
 Package: schard
-Title: Reticulate-free single cell object conversion
-Version: 1.1.0
+Title: Reticulate-free single cell object conversion and QC dashboard
+Version: 2.0.0
 Authors@R: 
     person(given = "Pavel",
            family = "Mazin",
-           role = c("aut", "cre"),
+           role = "aut",
            email = "iaa.aka@gmail.com",
-           comment = c(ORCID = "0000-0001-9268-3352"))
-Description: Load scanpy h5ad file into R.
+           comment = c(ORCID = "0000-0001-9268-3352")) +
+    person(given = "Sergio",
+           family = "Litwiniuk",
+           role = c("aut", "cre"),
+           email = "sergiolitwiniuk85@gmail.com")
+Description: Load scanpy h5ad files into R and launch an interactive QC
+    dashboard for single-cell RNA-seq data. Provides h5ad I/O, H5AD
+    validation, cell filtering with auto-detected QC metrics, interactive
+    UMAP exploration, and batch QC reports.
 License: GPL-3
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
 Suggests:
   testthat (>= 3.0.0),
+  shinytest2,
+  rmarkdown,
   SingleCellExperiment,
   Seurat
 Imports:
+  bslib,
+  dplyr,
+  DT,
+  ggplot2,
   Matrix,
-  rhdf5
+  plotly,
+  rhdf5,
+  shiny
 Remotes:
   bioc::rhdf5
 biocViews: 

@@ -345,7 +345,7 @@ shiny_server <- function(input, output, session, data, qc_detected, replicate_co
 
       tryCatch(
         {
-          schard::write_h5ad(filtered_list, filename)
+          write_h5ad(filtered_list, filename)
           shiny::incProgress(0.8, detail = "Finalizing...")
           shiny::showNotification(
             paste0("Saved: ", filename, " (", n_pass, " cells, ",

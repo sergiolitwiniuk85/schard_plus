@@ -10,7 +10,7 @@ normalize_to_list <- function(object) {
     if (!file.exists(object)) {
       stop("File not found: ", object, call. = FALSE)
     }
-    return(schard::h5ad2list(object, load.obsm = TRUE))
+    return(h5ad2list(object, load.obsm = TRUE))
   }
   if (inherits(object, "SingleCellExperiment")) {
     loadRequiredPackages("SingleCellExperiment")
