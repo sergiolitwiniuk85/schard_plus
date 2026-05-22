@@ -193,15 +193,51 @@ launch_qc_dashboard(data)    # list from h5ad2list()
 | **Save Filtered H5AD** | Writes filtered dataset to a new H5AD file with progress bar |
 | **Export HTML report** | Self-contained summary with thresholds, plots, and replicate impact |
 
-### Batch mode
+---
+
+## CLI / Batch Mode
+
+Run everything from the terminal without interactive R or Shiny:
+
+```bash
+# Full QC report — no browser needed
+Rscript -e "schard::qc_report('data.h5ad', 'qc_output/')"
+
+# With custom thresholds
+Rscript -e "
+  schard::qc_report('data.h5ad', 'qc_output/',
+    thresholds = list(pct_mito = 10, n_genes = c(500, 6000)))
+"
+```
+
+From within R:
 
 ```r
-# Generate static report — no browser needed
+library(schard)
 qc_report("data.h5ad", "qc_output/",
   thresholds = list(pct_mito = 10, n_genes = c(500, 6000)))
 ```
 
-Produces: `filtered_cells.csv`, UMAP/QC distribution plots, impact barplots, and self-contained HTML summary.
+### What you get
+
+| File | Content |
+|---|---|
+| `qc_report.html` | Self-contained summary with thresholds, plots, and replicate impact |
+| `filtered_cells.csv` | Cell barcodes with pass/fail and fail reason |
+| `umap_qc.png` | UMAP colored by pass/fail |
+| `qc_{metric}.png` | QC metric distributions (one per metric) |
+| `impact_by_replicate.png` | Cell loss per biological replicate |
+
+### Pipeline example
+
+```bash
+# Validate → QC report → save filtered H5AD, all from the terminal
+Rscript -e "
+  library(schard)
+  h5ad_validate('data.h5ad')
+  qc_report('data.h5ad', 'qc_output/')
+"
+```
 
 ---
 
