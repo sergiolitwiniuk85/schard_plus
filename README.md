@@ -264,12 +264,12 @@ index uniqueness, shape consistency — without loading the full expression matr
 
 | Metric | Value |
 |---|---|
-| Cyclomatic complexity (avg) | **6.6** |
-| Functions | **29** |
-| Tests | **19** (60+ expectations) |
+| Cyclomatic complexity (avg) | **4.9** |
+| Functions | **63** |
+| Test files | **10** (170+ expectations) |
 | CI | **GitHub Actions** (ubuntu + macOS) |
 
-Complexity baseline and reports are in [`metrics/`](metrics/).
+Complexity reports are in [`metrics/`](metrics/).
 
 ---
 
