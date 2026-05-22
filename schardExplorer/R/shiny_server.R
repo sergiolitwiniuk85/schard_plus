@@ -323,34 +323,42 @@ shiny_server <- function(input, output, session, data, qc_detected, replicate_co
       return()
     }
 
-    lst <- data()
-    keep <- f$pass
+    shiny::withProgress(message = "Saving filtered H5AD", value = 0, {
+      lst <- data()
+      keep <- f$pass
 
-    filtered_list <- list(
-      X = lst$X[, keep, drop = FALSE],
-      obs = lst$obs[keep, , drop = FALSE],
-      var = lst$var,
-      obsm = lapply(lst$obsm, function(m) {
-        if (is.matrix(m) || inherits(m, "Matrix")) {
-          m[keep, , drop = FALSE]
-        } else m
-      })
-    )
+      shiny::incProgress(0.2, detail = "Subsetting data...")
 
-    filename <- paste0("qc_filtered_", Sys.Date(), ".h5ad")
+      filtered_list <- list(
+        X = lst$X[, keep, drop = FALSE],
+        obs = lst$obs[keep, , drop = FALSE],
+        var = lst$var,
+        obsm = lapply(lst$obsm, function(m) {
+          if (is.matrix(m) || inherits(m, "Matrix")) {
+            m[keep, , drop = FALSE]
+          } else m
+        })
+      )
 
-    tryCatch(
-      {
-        schard::write_h5ad(filtered_list, filename)
-        shiny::showNotification(
-          paste0("Saved: ", filename, " (", n_pass, " cells, ",
-                 nrow(lst$var), " genes)"),
-          type = "message", duration = 5)
-      },
-      error = function(e) {
-        shiny::showNotification(paste0("Error saving H5AD: ", e$message),
-          type = "error", duration = 10)
-      }
-    )
+      shiny::incProgress(0.4, detail = "Writing H5AD file...")
+      filename <- paste0("qc_filtered_", Sys.Date(), ".h5ad")
+
+      tryCatch(
+        {
+          schard::write_h5ad(filtered_list, filename)
+          shiny::incProgress(0.8, detail = "Finalizing...")
+          shiny::showNotification(
+            paste0("Saved: ", filename, " (", n_pass, " cells, ",
+                   nrow(lst$var), " genes)"),
+            type = "message", duration = 5)
+        },
+        error = function(e) {
+          shiny::showNotification(paste0("Error saving H5AD: ", e$message),
+            type = "error", duration = 10)
+        }
+      )
+
+      shiny::incProgress(1.0, detail = "Done!")
+    })
   })
 }
