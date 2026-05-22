@@ -323,14 +323,6 @@ shiny_server <- function(input, output, session, data, qc_detected, replicate_co
       return()
     }
 
-    shiny::showNotification(
-      paste0("Writing filtered H5AD (", n_pass, " cells)..."), type = "info")
-    on.exit(
-      shiny::showNotification(
-        paste0("Saved: qc_filtered_", Sys.Date(), ".h5ad"),
-        type = "message", duration = 5)
-    )
-
     lst <- data()
     keep <- f$pass
 
@@ -348,7 +340,13 @@ shiny_server <- function(input, output, session, data, qc_detected, replicate_co
     filename <- paste0("qc_filtered_", Sys.Date(), ".h5ad")
 
     tryCatch(
-      schard::write_h5ad(filtered_list, filename),
+      {
+        schard::write_h5ad(filtered_list, filename)
+        shiny::showNotification(
+          paste0("Saved: ", filename, " (", n_pass, " cells, ",
+                 nrow(lst$var), " genes)"),
+          type = "message", duration = 5)
+      },
       error = function(e) {
         shiny::showNotification(paste0("Error saving H5AD: ", e$message),
           type = "error", duration = 10)
