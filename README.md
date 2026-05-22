@@ -5,14 +5,36 @@
 [![License: GPL-3](https://img.shields.io/badge/license-GPL--3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 <!-- badges: end -->
 
-**schard** is a pure R package to read and write [scanpy](https://scanpy.readthedocs.io/) H5AD (AnnData) files.
+**schard** is a pure R package to read, write, validate, and interactively QC
+[scanpy](https://scanpy.readthedocs.io/) H5AD (AnnData) files.
 No Python, no reticulate — just `rhdf5` under the hood.
+
+---
+
+## Quick Start
+
+```r
+# Install
+remotes::install_github("sergiolitwiniuk85/schard_plus")
+
+# Load
+library(schard)
+
+# Validate before loading
+h5ad_validate("data.h5ad")
+
+# Interactive QC dashboard
+launch_qc_dashboard("data.h5ad")
+```
+
+Opens a Shiny app. Adjust sliders, explore UMAP, click **Save Filtered H5AD**
+to write the filtered dataset — all without leaving R.
 
 ---
 
 ## Features
 
-### Read (original)
+### Read
 | Function | Output | Use case |
 |---|---|---|
 | `h5ad2list()` | `list` | Low-level access to raw data |
@@ -23,17 +45,40 @@ No Python, no reticulate — just `rhdf5` under the hood.
 | `h5ad2Matrix()` | `dgCMatrix` | Pull expression or embedding matrix |
 | `h5ad2images()` | list of images | Visium spatial images |
 
-### Write (new in v1.1.0)
+### Validate
+| Function | What it checks |
+|---|---|
+| `h5ad_validate()` | H5AD structure, required groups, encoding types, index uniqueness — without loading full data |
+
+### Write
 | Function | Input | Writes to H5AD |
 |---|---|---|
 | `write_h5ad()` | `SingleCellExperiment`, `Seurat`, or `list` | `X`, `obs`, `var`, `obsm`, `uns` → scanpy-compatible `.h5ad` |
+
+### Interactive QC Dashboard
+| Function | What it does |
+|---|---|
+| `launch_qc_dashboard()` | Shiny app with real-time QC sliders, UMAP exploration, per-cluster impact, replicate tracking, and **Save Filtered H5AD** button |
+
+### Batch QC Reports
+| Function | What it does |
+|---|---|
+| `qc_report()` | Generates static HTML report + CSV + plots — no browser needed |
+
+### QC Utilities
+| Function | Use case |
+|---|---|
+| `detect_qc_cols()` | Auto-detect QC columns in cell metadata |
+| `compute_qc_metrics()` | Compute QC metrics from obs |
+| `apply_filter_thresholds()` | Apply threshold filters programmatically |
+| `impact_by_replicate()` | Per-replicate cell loss analysis |
 
 ---
 
 ## Installation
 
 ```r
-# From GitHub
+# From GitHub (one package, everything included)
 remotes::install_github("sergiolitwiniuk85/schard_plus")
 
 # Load
@@ -52,24 +97,24 @@ download.file(
 )
 
 # As SingleCellExperiment
-sce <- schard::h5ad2sce("sn.heart.h5ad")
+sce <- h5ad2sce("sn.heart.h5ad")
 
 # As Seurat
-seu <- schard::h5ad2seurat("sn.heart.h5ad")
+seu <- h5ad2seurat("sn.heart.h5ad")
 
 # Quick metadata
-obs <- schard::h5ad2data.frame("sn.heart.h5ad", "obs")
+obs <- h5ad2data.frame("sn.heart.h5ad", "obs")
 head(obs)
 
 # Pull a reduction
-umap <- t(schard::h5ad2Matrix("sn.heart.h5ad", "/obsm/X_umap"))
+umap <- t(h5ad2Matrix("sn.heart.h5ad", "/obsm/X_umap"))
 plot(umap[, 1:2], pch = 16, cex = 0.4, col = factor(obs$cell_state))
 ```
 
 ### Spatial (Visium)
 
 ```r
-seu <- schard::h5ad2seurat_spatial("visium_sample.h5ad")
+seu <- h5ad2seurat_spatial("visium_sample.h5ad")
 Seurat::SpatialPlot(seu, features = "total_counts")
 ```
 
@@ -81,7 +126,7 @@ Write R objects back to scanpy-compatible H5AD:
 
 ```r
 # Round-trip a SingleCellExperiment
-sce <- schard::h5ad2sce("input.h5ad")
+sce <- h5ad2sce("input.h5ad")
 write_h5ad(sce, "output.h5ad")
 
 # scanpy can now read it:
@@ -94,7 +139,7 @@ write_h5ad(sce, "output.h5ad")
 #     obsm: 'X_umap', 'X_pca'
 
 # From a Seurat object
-seu <- schard::h5ad2seurat("input.h5ad")
+seu <- h5ad2seurat("input.h5ad")
 write_h5ad(seu, "output.h5ad")
 
 # From a list (manual construction)
@@ -123,61 +168,72 @@ The output is compatible with `scanpy.read_h5ad()` — same encoding-type conven
 
 ---
 
-## Quality & Metrics
+## Interactive QC Dashboard
 
-| Metric | Before | After |
-|---|---|---|
-| Cyclomatic complexity (avg) | 9.8 | **6.6** 🔽 |
-| Functions | 9 | **21** |
-| Tests | 0 | **13** (49 expectations) |
-| CI | None | **GitHub Actions** (ubuntu + macOS) |
-
-Complexity baseline and post-refactor reports are in [`metrics/`](metrics/).
-
----
-
----
-
-## schardExplorer — Interactive QC Dashboard
-
-[schardExplorer](schardExplorer/) is a companion R package that provides interactive and batch QC for single-cell data.
-
-### Visual mode
+Launch a full-featured Shiny app from any supported input:
 
 ```r
-library(schardExplorer)
-
-# Launch interactive dashboard from any loaded object
+# From an H5AD file
 launch_qc_dashboard("data.h5ad")
+
+# From any loaded object
 launch_qc_dashboard(sce)     # SingleCellExperiment
 launch_qc_dashboard(seu)     # Seurat
 launch_qc_dashboard(data)    # list from h5ad2list()
 ```
 
-Opens a Shiny app with:
-- **QC sliders** — real-time thresholds for Mito%, gene counts, UMI counts, doublet scores
-- **Interactive UMAP** — plotly with dynamic coloring (pass/fail, cluster, replicate, any metadata)
-- **Per-cluster impact** — DT table showing cells lost per cluster at current thresholds
-- **Biological replicate tracking** — per-replicate summary with configurable loss warnings
-- **CSV + HTML export** — filtered cells, thresholds, and per-replicate stats
+### Dashboard features
+
+| Feature | Description |
+|---|---|
+| **QC sliders** | Real-time thresholds for Mito%, gene counts, UMI counts, doublet scores |
+| **Interactive UMAP** | Plotly with dynamic coloring (pass/fail, cluster, replicate, any metadata column) |
+| **Per-cluster impact** | DT table showing cells lost per cluster at current thresholds |
+| **Biological replicate tracking** | Per-replicate summary with configurable loss warnings |
+| **Save Filtered H5AD** | Writes filtered dataset to a new H5AD file with progress bar |
+| **Export HTML report** | Self-contained summary with thresholds, plots, and replicate impact |
 
 ### Batch mode
 
 ```r
-# Generate static report — no browser needed, runs anywhere
+# Generate static report — no browser needed
 qc_report("data.h5ad", "qc_output/",
   thresholds = list(pct_mito = 10, n_genes = c(500, 6000)))
 ```
 
 Produces: `filtered_cells.csv`, UMAP/QC distribution plots, impact barplots, and self-contained HTML summary.
 
-### Install
+---
+
+## H5AD Validation
+
+Check file integrity before loading large datasets:
 
 ```r
-remotes::install_github("sergiolitwiniuk85/schard_plus", subdir = "schardExplorer")
+h5ad_validate("large_dataset.h5ad")
+# → TRUE / FALSE with detailed messages
+
+# Loading from a validated file
+if (h5ad_validate("data.h5ad")) {
+  sce <- h5ad2sce("data.h5ad")
+}
 ```
 
-See the [schardExplorer README](schardExplorer/) for full documentation.
+Validates: file exists, required groups present, encoding types correct,
+index uniqueness, shape consistency — without loading the full expression matrix.
+
+---
+
+## Quality & Metrics
+
+| Metric | Value |
+|---|---|
+| Cyclomatic complexity (avg) | **6.6** |
+| Functions | **29** |
+| Tests | **19** (60+ expectations) |
+| CI | **GitHub Actions** (ubuntu + macOS) |
+
+Complexity baseline and reports are in [`metrics/`](metrics/).
 
 ---
 
@@ -186,15 +242,16 @@ See the [schardExplorer README](schardExplorer/) for full documentation.
 | Feature | **schard** | sceasy | SeuratDisk |
 |---|---|---|---|
 | **Read H5AD** | ✅ Pure R, rhdf5 | ✅ Uses reticulate | ✅ Uses h5Seurat intermediate |
-| **Write H5AD** | ✅ **v1.1.0** | ✅ | ✅ (via h5Seurat) |
-| **QC Dashboard** | ✅ **schardExplorer** | ❌ | ❌ |
+| **Write H5AD** | ✅ v1.1.0+ | ✅ | ✅ (via h5Seurat) |
+| **QC Dashboard** | ✅ Built-in | ❌ | ❌ |
+| **H5AD Validation** | ✅ Built-in | ❌ | ❌ |
 | **Spatial (Visium)** | ✅ | Partial | ❌ |
 | **Python dependency** | ❌ None | ✅ Requires | ❌ None |
 | **Performance** | Fast (direct HDF5) | Moderate (Python bridge) | Moderate (format conversion) |
-| **Maintenance** | Active | Low | Low |
 
 ---
 
 ## License
 
 GPL-3. Original author: Pavel Mazin ([cellgeni/schard](https://github.com/cellgeni/schard)).
+Dashboard and extended features: Sergio Litwiniuk.

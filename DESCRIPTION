@@ -1,16 +1,16 @@
 Package: schard
 Title: Reticulate-free single cell object conversion and QC dashboard
 Version: 2.0.0
-Authors@R: 
+Authors@R: c(
     person(given = "Pavel",
            family = "Mazin",
            role = "aut",
            email = "iaa.aka@gmail.com",
-           comment = c(ORCID = "0000-0001-9268-3352")) +
+           comment = c(ORCID = "0000-0001-9268-3352")),
     person(given = "Sergio",
            family = "Litwiniuk",
            role = c("aut", "cre"),
-           email = "sergiolitwiniuk85@gmail.com")
+           email = "sergiolitwiniuk85@gmail.com"))
 Description: Load scanpy h5ad files into R and launch an interactive QC
     dashboard for single-cell RNA-seq data. Provides h5ad I/O, H5AD
     validation, cell filtering with auto-detected QC metrics, interactive
@@ -27,7 +27,6 @@ Suggests:
   Seurat
 Imports:
   bslib,
-  dplyr,
   DT,
   ggplot2,
   Matrix,

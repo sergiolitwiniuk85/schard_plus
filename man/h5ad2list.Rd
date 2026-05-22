@@ -16,22 +16,24 @@ h5ad2list(
 \arguments{
 \item{filename}{path to h5ad file}
 
+\item{use.raw}{logical, whether to load adata.raw.X instead of adata.X}
+
 \item{load.obsm}{logical, whether to load adata.obsm.}
 
 \item{load.X}{logical, whether to load expression. Set all expressions to zeroes if FALSE. It can be much faster not to load expression}
 
-\item{forSeurat}{logical, should data be formated to be compatable with Seurat}
+\item{forSeurat}{\strong{Deprecated}. Use \code{\link{h5ad2seurat}} instead. If \code{TRUE}, renames var rownames (underscore to dash) for Seurat compatibility.}
 
 \item{use_spam}{logical, whether to use spam instead of Matrix. Can be used if matrix has more than 2^31 -1 non-zero elements. Keep in mind that spam is not compatible with Seurat}
-
-\item{load.raw}{logical, whether to load adata.raw.X instead of adata.X}
 }
 \value{
-list with following elements:
-obs - data.frame
-var - data.frame
-X - matrix (dense or sparse - as it was in X)
-obsm - list of matrices from obsm (presumably reduced dimensions)
+A list with components:
+\describe{
+\item{obs}{data.frame of cell metadata}
+\item{var}{data.frame of feature metadata}
+\item{X}{expression matrix (dense or sparse, as stored in the H5AD)}
+\item{obsm}{list of matrices from /obsm (reduced dimensions, e.g., PCA, UMAP)}
+}
 }
 \description{
 Loads main parts of h5ad file as ordinary R list

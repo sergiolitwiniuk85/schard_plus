@@ -2,19 +2,20 @@
 % Please edit documentation in R/h5ad_util.R
 \name{h5ad2images}
 \alias{h5ad2images}
-\title{Load visium images from h5ad}
+\title{Load Visium images from h5ad}
 \usage{
 h5ad2images(filename)
 }
 \arguments{
-\item{filename}{path 2 visium h5ad}
+\item{filename}{path to h5ad file with Visium spatial data}
 }
 \value{
-list of slides. Each slide is list with scale.fctors, hires and lowres images
+list of slides. Each slide has scale.factors, hires, and lowres images
 }
 \description{
-Load visium images from h5ad
+Load Visium images from h5ad
 }
 \examples{
 imgs = h5ad2images('adata.h5ad')
 }
+\keyword{internal}

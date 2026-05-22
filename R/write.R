@@ -159,6 +159,7 @@ write_h5ad <- function(object, file, ...) {
 }
 
 #' @rdname write_h5ad
+#' @export
 write_h5ad.SingleCellExperiment <- function(object, file, ...) {
   loadRequiredPackages("SingleCellExperiment")
 
@@ -176,6 +177,7 @@ write_h5ad.SingleCellExperiment <- function(object, file, ...) {
 }
 
 #' @rdname write_h5ad
+#' @export
 write_h5ad.Seurat <- function(object, file, ...) {
   loadRequiredPackages("Seurat")
 
@@ -204,6 +206,7 @@ write_h5ad.Seurat <- function(object, file, ...) {
 }
 
 #' @rdname write_h5ad
+#' @export
 write_h5ad.list <- function(object, file, ...) {
   .write_h5ad_core(
     file,
@@ -216,6 +219,7 @@ write_h5ad.list <- function(object, file, ...) {
 }
 
 #' @rdname write_h5ad
+#' @export
 write_h5ad.default <- function(object, file, ...) {
   stop(
     "write_h5ad is not implemented for class ",

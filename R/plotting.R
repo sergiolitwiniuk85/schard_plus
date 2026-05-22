@@ -1,5 +1,6 @@
 #' QC plots for batch reports
 #'
+#' @name qc-plots
 #' @keywords internal
 NULL
 

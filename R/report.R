@@ -1,7 +1,7 @@
 #' Generate a batch QC report
 #'
 #' Runs QC filtering and generates static plots + CSV summary.
-#' Does NOT require Shiny \u2014 runs in any R environment.
+#' Does NOT require Shiny - runs in any R environment.
 #'
 #' @param object Single-cell object: list, SingleCellExperiment, Seurat, or .h5ad path.
 #' @param output_dir Directory to write report files.
