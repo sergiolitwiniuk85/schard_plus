@@ -1,5 +1,5 @@
 #' @import Matrix
-#' @importFrom rhdf5 h5createFile h5createGroup h5write h5writeAttribute
+#' @importFrom rhdf5 h5createFile h5createGroup h5createDataset h5write h5writeAttribute
 #' @importFrom rhdf5 H5Fopen H5Fclose H5Gopen H5Gclose H5Dopen H5Dclose
 #' @importFrom rhdf5 H5Lexists
 
@@ -16,6 +16,27 @@
   csr <- as(Matrix::t(mat), "RsparseMatrix")
 
   rhdf5::h5createGroup(fid, group_name)
+
+  chunk_size <- 1000000L
+  data_len <- length(csr@x)
+  indptr_len <- length(csr@p)
+
+  rhdf5::h5createDataset(
+    fid, paste0(group_name, "/data"),
+    dims = data_len, storage.mode = "double", level = 4,
+    chunk = min(chunk_size, max(data_len, 1L))
+  )
+  rhdf5::h5createDataset(
+    fid, paste0(group_name, "/indices"),
+    dims = data_len, storage.mode = "integer", level = 4,
+    chunk = min(chunk_size, max(data_len, 1L))
+  )
+  rhdf5::h5createDataset(
+    fid, paste0(group_name, "/indptr"),
+    dims = indptr_len, storage.mode = "integer", level = 4,
+    chunk = max(indptr_len, 1L)
+  )
+
   rhdf5::h5write(as.numeric(csr@x), fid, paste0(group_name, "/data"))
   rhdf5::h5write(as.integer(csr@j), fid, paste0(group_name, "/indices"))
   rhdf5::h5write(as.integer(csr@p), fid, paste0(group_name, "/indptr"))
